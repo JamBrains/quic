@@ -1647,6 +1647,12 @@ handle_connection_event_peer_certificate_received(QuicerConnCTX *c_ctx,
       X509_free(c_ctx->peer_cert);
     }
   c_ctx->peer_cert = X509_dup(cert);
+
+  // @ggwpez: HERE vvv Put the code for manual Cert validation.
+  // We will need this later, for now we can just close the connection, but
+  // eventually, we want to also return the proper TLS error.
+  //return QUIC_STATUS_PENDING;
+
 #if defined(QUICER_USE_TRUSTED_STORE)
   X509_STORE_CTX *x509_ctx
       = (X509_STORE_CTX *)Event->PEER_CERTIFICATE_RECEIVED.Chain;

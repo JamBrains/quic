@@ -110,6 +110,15 @@ parse_verify_options(ErlNifEnv *env,
       *is_verify = verify;
     }
 
+  // We always have to enable this, otherwise the remote party will not receive our certificate and
+  // `:quicer.peercert` will return `{:error, :no_peercert}.
+  CredConfig->Flags |= QUIC_CREDENTIAL_FLAG_INDICATE_CERTIFICATE_RECEIVED;
+
+  // This is (for whatever reason) also required in combination with the flag above, but only on
+  // the server side. Otherwise, the server will not get the client cert :(. Anyway, enabling it on
+  // the client side does not hurt either, so we always enable it.
+  CredConfig->Flags |= QUIC_CREDENTIAL_FLAG_REQUIRE_CLIENT_AUTHENTICATION;
+
   if (!verify)
     {
       CredConfig->Flags |= QUIC_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
