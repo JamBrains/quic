@@ -1651,6 +1651,7 @@ handle_connection_event_peer_certificate_received(QuicerConnCTX *c_ctx,
   // @ggwpez: HERE vvv Put the code for manual Cert validation.
   // We will need this later, for now we can just close the connection, but
   // eventually, we want to also return the proper TLS error.
+  // See <https://github.com/microsoft/msquic/blob/f6b6e013e6b5dada11d4f70d5b93aee388a16bc6/docs/api/ConnectionCertificateValidationComplete.md?plain=1#L4>
   //return QUIC_STATUS_PENDING;
 
 #if defined(QUICER_USE_TRUSTED_STORE)
