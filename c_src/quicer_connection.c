@@ -171,6 +171,47 @@ exit:
   return res;
 }
 
+ERL_NIF_TERM
+complete_cert_validation1(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+  if (argc != 1)
+    {
+      return ERROR_TUPLE_2(ATOM_BADARG);
+    }
+
+  ERL_NIF_TERM ctx = argv[0];
+  void *q_ctx;
+  QuicerConnCTX *c_ctx;
+  if (enif_get_resource(env, ctx, ctx_stream_t, &q_ctx))
+    {
+      c_ctx = ((QuicerStreamCTX *)q_ctx)->c_ctx;
+    }
+  else if (enif_get_resource(env, ctx, ctx_connection_t, &q_ctx))
+    {
+      c_ctx = (QuicerConnCTX *)q_ctx;
+    }
+  else
+    {
+      return ERROR_TUPLE_2(ATOM_BADARG);
+    }
+
+  fprintf(stderr, "Completing custom Cert validation\n");
+  
+  enif_mutex_lock(c_ctx->lock);
+  QUIC_STATUS Status = MsQuic->ConnectionCertificateValidationComplete(c_ctx->Connection, false, QUIC_TLS_ALERT_CODE_CERTIFICATE_UNKNOWN);
+  enif_mutex_unlock(c_ctx->lock);
+
+  if (QUIC_FAILED(Status))
+    {
+      fprintf(stderr, "Could not complete custom cert validation, status=%d\n", Status);
+      return ERROR_TUPLE_2(ATOM_STATUS(Status));
+    }
+    else {
+      fprintf(stderr, "Finished custom Cert validation\n");
+      return ATOM_OK;
+    }
+}
+
 void
 dump_sslkeylogfile(_In_z_ const char *FileName,
                    _In_ QUIC_TLS_SECRETS TlsSecrets)
@@ -1647,12 +1688,13 @@ handle_connection_event_peer_certificate_received(QuicerConnCTX *c_ctx,
       X509_free(c_ctx->peer_cert);
     }
   c_ctx->peer_cert = X509_dup(cert);
+  fprintf(stderr, "Custom validation pending for cert %p\n", c_ctx->peer_cert);
 
   // @ggwpez: HERE vvv Put the code for manual Cert validation.
   // We will need this later, for now we can just close the connection, but
   // eventually, we want to also return the proper TLS error.
   // See <https://github.com/microsoft/msquic/blob/f6b6e013e6b5dada11d4f70d5b93aee388a16bc6/docs/api/ConnectionCertificateValidationComplete.md?plain=1#L4>
-  //return QUIC_STATUS_PENDING;
+  return QUIC_STATUS_PENDING;
 
 #if defined(QUICER_USE_TRUSTED_STORE)
   X509_STORE_CTX *x509_ctx
