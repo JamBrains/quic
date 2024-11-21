@@ -172,9 +172,9 @@ exit:
 }
 
 ERL_NIF_TERM
-complete_cert_validation1(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-  if (argc != 1)
+  if (argc != 2)
     {
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
@@ -195,10 +195,31 @@ complete_cert_validation1(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
 
-  fprintf(stderr, "Completing custom Cert validation\n");
+  BOOLEAN cert_good = FALSE;
+  ERL_NIF_TERM ecert_good = argv[1];
+  if (IS_SAME_TERM(ATOM_TRUE, ecert_good))
+    {
+      cert_good = TRUE;
+    }
+  else if (IS_SAME_TERM(ATOM_FALSE, ecert_good))
+    {
+      cert_good = FALSE;
+    }
+  else
+    {
+      return ERROR_TUPLE_2(ATOM_BADARG);
+    }
+
+  fprintf(stderr, "Running custom Cert validation, good=%d\n", cert_good);
+  
+  QUIC_TLS_ALERT_CODES tls_code = QUIC_TLS_ALERT_CODE_CERTIFICATE_UNKNOWN;
+  if (cert_good)
+    {
+      tls_code = QUIC_TLS_ALERT_CODE_SUCCESS;
+    }
   
   enif_mutex_lock(c_ctx->lock);
-  QUIC_STATUS Status = MsQuic->ConnectionCertificateValidationComplete(c_ctx->Connection, false, QUIC_TLS_ALERT_CODE_CERTIFICATE_UNKNOWN);
+  QUIC_STATUS Status = MsQuic->ConnectionCertificateValidationComplete(c_ctx->Connection, cert_good, tls_code);
   enif_mutex_unlock(c_ctx->lock);
 
   if (QUIC_FAILED(Status))
@@ -1689,12 +1710,19 @@ handle_connection_event_peer_certificate_received(QuicerConnCTX *c_ctx,
     }
   c_ctx->peer_cert = X509_dup(cert);
   fprintf(stderr, "Custom validation pending for cert %p\n", c_ctx->peer_cert);
-
-  // @ggwpez: HERE vvv Put the code for manual Cert validation.
-  // We will need this later, for now we can just close the connection, but
-  // eventually, we want to also return the proper TLS error.
-  // See <https://github.com/microsoft/msquic/blob/f6b6e013e6b5dada11d4f70d5b93aee388a16bc6/docs/api/ConnectionCertificateValidationComplete.md?plain=1#L4>
-  return QUIC_STATUS_PENDING;
+  
+  // Notify owner that we received the cert
+  {
+    assert(c_ctx->Connection);
+    ErlNifEnv *env = c_ctx->env;
+    // TODO ggwpez dont be so lazy and actually include the Cert here instead of just OK.
+    ERL_NIF_TERM report
+        = make_event(env,
+                    ATOM_PEER_CERT_RECEIVED,
+                    enif_make_resource(env, c_ctx),
+                    ATOM_OK);
+    enif_send(NULL, &(c_ctx->owner->Pid), NULL, report);
+  }
 
 #if defined(QUICER_USE_TRUSTED_STORE)
   X509_STORE_CTX *x509_ctx
@@ -1713,8 +1741,9 @@ handle_connection_event_peer_certificate_received(QuicerConnCTX *c_ctx,
   if (res <= 0)
     return QUIC_STATUS_BAD_CERTIFICATE;
   else
-#endif // QUICER_USE_TRUSTED_STORE
     return QUIC_STATUS_SUCCESS;
+#endif // QUICER_USE_TRUSTED_STORE
+    return QUIC_STATUS_PENDING;
 
   /* @TODO validate SNI */
 }

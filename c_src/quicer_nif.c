@@ -329,6 +329,7 @@ ERL_NIF_TERM ATOM_PEER_ADDRESS_CHANGED;
 ERL_NIF_TERM ATOM_SEND_SHUTDOWN_COMPLETE;
 ERL_NIF_TERM ATOM_PEER_ACCEPTED;
 ERL_NIF_TERM ATOM_LOCAL_ADDRESS_CHANGED;
+ERL_NIF_TERM ATOM_PEER_CERT_RECEIVED;
 ERL_NIF_TERM ATOM_STREAMS_AVAILABLE;
 ERL_NIF_TERM ATOM_PEER_NEEDS_STREAMS;
 ERL_NIF_TERM ATOM_START_COMPLETE;
@@ -750,6 +751,7 @@ ERL_NIF_TERM ATOM_QUIC_SEND_ECN_CONGESTION_COUNT;
   ATOM(ATOM_LOCAL_ADDRESS_CHANGED, local_address_changed);                    \
   ATOM(ATOM_STREAMS_AVAILABLE, streams_available);                            \
   ATOM(ATOM_PEER_NEEDS_STREAMS, peer_needs_streams);                          \
+  ATOM(ATOM_PEER_CERT_RECEIVED, peer_cert_received);                          \
   ATOM(ATOM_START_COMPLETE, start_completed);                                 \
   ATOM(ATOM_SEND_COMPLETE, send_complete);                                    \
   ATOM(ATOM_DGRAM_SEND_STATE, dgram_send_state);                              \
@@ -1755,7 +1757,7 @@ static ErlNifFunc nif_funcs[] = {
   { "setopt", 4, setopt4, 0},
   { "controlling_process", 2, controlling_process, 0},
   { "peercert", 1, peercert1, 0},
-  { "complete_cert_validation", 1, complete_cert_validation1, 0},
+  { "complete_cert_validation", 2, complete_cert_validation2, 0},
   { "enable_sig_buffer", 1, enable_sig_buffer, 0},
   { "flush_stream_buffered_sigs", 1, flush_stream_buffered_sigs, 0},
   /* for DEBUG */
