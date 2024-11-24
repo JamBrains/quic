@@ -47,6 +47,7 @@ closeLib(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM ATOM_TRUE;
 ERL_NIF_TERM ATOM_FALSE;
+ERL_NIF_TERM ATOM_GLOBAL;
 
 // quicer internal 'errors'
 ERL_NIF_TERM ATOM_OK;
@@ -476,6 +477,7 @@ ERL_NIF_TERM ATOM_QUIC_SEND_ECN_CONGESTION_COUNT;
 #define INIT_ATOMS                                                            \
   ATOM(ATOM_TRUE, true);                                                      \
   ATOM(ATOM_FALSE, false);                                                    \
+  ATOM(ATOM_GLOBAL, global);                                                  \
                                                                               \
   ATOM(ATOM_OK, ok);                                                          \
   ATOM(ATOM_ERROR, error);                                                    \
@@ -869,7 +871,7 @@ ERL_NIF_TERM ATOM_QUIC_SEND_ECN_CONGESTION_COUNT;
   ATOM(ATOM_QUIC_SEND_ECN_CONGESTION_COUNT, send_ecn_congestion_count);       \
   ATOM(ATOM_UNDEFINED, undefined);
 
-extern QuicerRegistrationCTX *G_r_ctx;
+extern QuicerRegistrationCTX G_r_ctx;
 extern pthread_mutex_t GRegLock;
 
 const QUIC_API_TABLE *MsQuic = NULL;
@@ -954,7 +956,7 @@ resource_conn_dealloc_callback(__unused_parm__ ErlNifEnv *env, void *obj)
   TP_CB_3(start, (uintptr_t)c_ctx->Connection, c_ctx->is_closed);
   // must be closed otherwise will trigger callback and casue race cond.
   // This ensures no callbacks during cleanup here.
-  assert(c_ctx->is_closed == TRUE); // in dealloc
+  CXPLAT_DBG_ASSERT(c_ctx->is_closed == TRUE); // in dealloc
   if (c_ctx->Connection)
     {
       TP_CB_3(close, (uintptr_t)c_ctx->Connection, c_ctx->is_closed);
@@ -994,14 +996,12 @@ resource_stream_dealloc_callback(__unused_parm__ ErlNifEnv *env, void *obj)
 {
   QuicerStreamCTX *s_ctx = (QuicerStreamCTX *)obj;
   TP_CB_3(start, (uintptr_t)s_ctx->Stream, s_ctx->is_closed);
-  assert(s_ctx->is_closed == TRUE);
+  CXPLAT_DBG_ASSERT(s_ctx->is_closed == TRUE);
   if (s_ctx->Stream && !s_ctx->is_closed)
     {
       MsQuic->StreamClose(s_ctx->Stream);
     }
 
-  // ensure it is called *After* StreamClose
-  enif_release_resource(s_ctx->c_ctx);
   AcceptorDestroy(s_ctx->owner);
   deinit_s_ctx(s_ctx);
   TP_CB_3(end, (uintptr_t)s_ctx->Stream, s_ctx->is_closed);
@@ -1019,7 +1019,7 @@ resource_stream_down_callback(__unused_parm__ ErlNifEnv *env,
   enif_mutex_lock(s_ctx->lock);
   if (s_ctx && s_ctx->owner && DeadPid
       && !enif_compare_pids(&s_ctx->owner->Pid, DeadPid)
-      && get_stream_handle(s_ctx))
+      && LOCAL_REFCNT(get_stream_handle(s_ctx)))
     {
       TP_CB_3(start, (uintptr_t)s_ctx->Stream, 0);
       if (QUIC_FAILED(status = MsQuic->StreamShutdown(
@@ -1035,7 +1035,7 @@ resource_stream_down_callback(__unused_parm__ ErlNifEnv *env,
         {
           TP_CB_3(shutdown_success, (uintptr_t)s_ctx->Stream, status);
         }
-      put_stream_handle(s_ctx);
+      LOCAL_REFCNT(put_stream_handle(s_ctx));
     }
   enif_mutex_unlock(s_ctx->lock);
 }
@@ -1046,8 +1046,7 @@ resource_config_dealloc_callback(__unused_parm__ ErlNifEnv *env,
 {
   TP_CB_3(start, (uintptr_t)obj, 0);
   QuicerConfigCTX *config_ctx = (QuicerConfigCTX *)obj;
-  // Check if Registration is closed or not
-  if (G_r_ctx && config_ctx->Configuration)
+  if (config_ctx->Configuration)
     {
       MsQuic->ConfigurationClose(config_ctx->Configuration);
     }
@@ -1059,12 +1058,10 @@ void
 resource_reg_dealloc_callback(__unused_parm__ ErlNifEnv *env, void *obj)
 {
   TP_CB_3(start, (uintptr_t)obj, 0);
-  QuicerRegistrationCTX *reg_ctx = (QuicerRegistrationCTX *)obj;
-  deinit_r_ctx(reg_ctx);
-  if (MsQuic && reg_ctx->Registration)
-    {
-      MsQuic->RegistrationClose(reg_ctx->Registration);
-    }
+  QuicerRegistrationCTX *r_ctx = (QuicerRegistrationCTX *)obj;
+  CXPLAT_FRE_ASSERT(!get_reg_handle(r_ctx));
+  CXPLAT_FRE_ASSERT(!r_ctx->Registration);
+  deinit_r_ctx(r_ctx);
   TP_CB_3(end, (uintptr_t)obj, 0);
 }
 
@@ -1348,15 +1345,25 @@ closeLib(__unused_parm__ ErlNifEnv *env,
 
       pthread_mutex_lock(&GRegLock);
       // end of the world
-      if (G_r_ctx && !G_r_ctx->is_released)
+      // @TODO: This is temp solution to ensure closing the global registration
+      // However other none global registration could be still open.
+      if (!G_r_ctx.is_closed)
         {
-          // Make MsQuic debug check pass:
-          //   Zero Registration when closing MsQuic
-          MsQuic->RegistrationClose(G_r_ctx->Registration);
-          G_r_ctx->Registration = NULL;
-          G_r_ctx->is_released = TRUE;
-          destroy_r_ctx(G_r_ctx);
-          G_r_ctx = NULL;
+          if (!get_reg_handle(&G_r_ctx))
+            {
+              CXPLAT_DBG_ASSERTMSG(FALSE,
+                                   "Global Registration closed before MsQuic");
+            }
+          // @FIXME: This is unsafe, but we have no choice for now
+          while (G_r_ctx.ref_count != 2)
+            {
+              printf("closelib wait for global reg cnt to be 2 but now: %ld\n",
+                     (long)G_r_ctx.ref_count);
+              sleep(1);
+            }
+          G_r_ctx.is_closed = TRUE;
+          put_reg_handle(&G_r_ctx);
+          put_reg_handle(&G_r_ctx);
         }
       pthread_mutex_unlock(&GRegLock);
 
@@ -1516,18 +1523,15 @@ atom_status(ErlNifEnv *env, QUIC_STATUS status)
 ERL_NIF_TERM
 controlling_process(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  CXPLAT_FRE_ASSERT(2 == argc);
   QuicerStreamCTX *s_ctx = NULL;
   QuicerConnCTX *c_ctx = NULL;
   ErlNifPid target, caller;
   ERL_NIF_TERM new_owner = argv[1];
   ERL_NIF_TERM res = ATOM_OK;
-  if (argc != 2)
-    {
-      return ATOM_BADARG;
-    }
 
   // precheck
-  if (!enif_get_local_pid(env, argv[1], &target))
+  if (!enif_get_local_pid(env, new_owner, &target))
     {
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
@@ -1540,7 +1544,7 @@ controlling_process(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
   if (enif_get_resource(env, argv[0], ctx_stream_t, (void **)&s_ctx))
     {
-      if (!get_stream_handle(s_ctx))
+      if (!LOCAL_REFCNT(get_stream_handle(s_ctx)))
         {
           return ERROR_TUPLE_2(ATOM_CLOSED);
         }
@@ -1548,7 +1552,7 @@ controlling_process(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
       enif_mutex_lock(s_ctx->lock);
       res = stream_controlling_process(env, s_ctx, &caller, &new_owner);
       enif_mutex_unlock(s_ctx->lock);
-      put_stream_handle(s_ctx);
+      LOCAL_REFCNT(put_stream_handle(s_ctx));
     }
   else if (enif_get_resource(env, argv[0], ctx_connection_t, (void **)&c_ctx))
     {
@@ -1561,6 +1565,7 @@ controlling_process(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
       enif_mutex_unlock(c_ctx->lock);
       put_conn_handle(c_ctx);
     }
+  // @TODO: add listener controlling process
   else
     {
       return ERROR_TUPLE_2(ATOM_BADARG);
@@ -1760,7 +1765,10 @@ static ErlNifFunc nif_funcs[] = {
   { "complete_cert_validation", 2, complete_cert_validation2, 0},
   { "enable_sig_buffer", 1, enable_sig_buffer, 0},
   { "flush_stream_buffered_sigs", 1, flush_stream_buffered_sigs, 0},
+  { "count_reg_conns", 0, count_reg_connsX, 0},
+  { "count_reg_conns", 1, count_reg_connsX, 0},
   /* for DEBUG */
+  { "get_registration_refcnt", 1, get_registration_refcnt, 0},
   { "get_conn_rid", 1, get_conn_rid1, 1},
   { "get_stream_rid", 1, get_stream_rid1, 1},
   { "get_listeners", 0, get_listenersX, 0},
