@@ -1024,6 +1024,8 @@ peername(Handle) ->
 peercert(Handle) ->
     quicer_nif:peercert(Handle).
 
+%% @doc Complete the custom peer cert validation that was initiated by the `peer_cert_received`msg.
+%% Should be called before timeouts occur.
 -spec complete_cert_validation(connection_handle() | stream_handle(), boolean()) ->
     ok | {error, any()}.
 complete_cert_validation(Handle, CertGood) ->

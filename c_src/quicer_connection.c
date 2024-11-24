@@ -210,8 +210,6 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
 
-  //fprintf(stderr, "Running custom Cert validation, good=%d\n", cert_good);
-  
   QUIC_TLS_ALERT_CODES tls_code = QUIC_TLS_ALERT_CODE_CERTIFICATE_UNKNOWN;
   if (cert_good)
     {
@@ -224,11 +222,9 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
   if (QUIC_FAILED(Status))
     {
-      //fprintf(stderr, "Could not complete custom cert validation, status=%d\n", Status);
       return ERROR_TUPLE_2(ATOM_STATUS(Status));
     }
     else {
-      //fprintf(stderr, "Finished custom Cert validation\n");
       return ATOM_OK;
     }
 }
@@ -1709,7 +1705,6 @@ handle_connection_event_peer_certificate_received(QuicerConnCTX *c_ctx,
       X509_free(c_ctx->peer_cert);
     }
   c_ctx->peer_cert = X509_dup(cert);
-  //fprintf(stderr, "Custom validation pending for cert %p\n", c_ctx->peer_cert);
   
   // Notify owner that we received the cert
   {
