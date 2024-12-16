@@ -11,7 +11,7 @@ default: build-nif
 
 .PHONY: build-nif
 build-nif:
-	./build.sh 'v2.3.5'
+	./build.sh 'v2.3.8'
 
 compile:
 	$(REBAR) compile
@@ -47,7 +47,7 @@ proper:
 .PHONY: proper-cover
 proper-cover:
 	mkdir -p coverage
-	QUICER_TEST_COVER=1 $(REBAR) as test proper -c -n 1000
+	QUICER_TEST_COVER=1 $(REBAR) as test proper -c -n 1000 --noshrink
 	lcov -c  --directory c_build/CMakeFiles/quicer_nif.dir/c_src/ \
 	--exclude "${PWD}/msquic/src/inc/*" \
 	--output-file ./coverage/proper-lcov.info
