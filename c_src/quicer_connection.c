@@ -204,6 +204,11 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
       return ERROR_TUPLE_2(ATOM_BADARG);
     }
 
+  if (!c_ctx || !LOCAL_REFCNT(get_conn_handle(c_ctx)))
+    {
+      return ERROR_TUPLE_2(ATOM_CLOSED);
+    }
+
   BOOLEAN cert_good = FALSE;
   ERL_NIF_TERM ecert_good = argv[1];
   if (IS_SAME_TERM(ATOM_TRUE, ecert_good))
