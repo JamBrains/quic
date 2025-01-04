@@ -989,6 +989,34 @@ async_accept2(ErlNifEnv *env,
 }
 
 ERL_NIF_TERM
+close_connection1(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+  QuicerConnCTX *c_ctx;
+  CXPLAT_FRE_ASSERT(1 == argc);
+  if (!enif_get_resource(env, argv[0], ctx_connection_t, (void **)&c_ctx))
+    {
+      return ERROR_TUPLE_2(ATOM_BADARG);
+    }
+
+  if (!c_ctx->Connection)
+    {
+      // already closed
+      return ERROR_TUPLE_2(ATOM_CLOSED);
+    }
+
+  if (get_conn_handle(c_ctx))
+    {
+      MsQuic->ConnectionClose(c_ctx->Connection);
+      put_conn_handle(c_ctx);
+      return ATOM_OK;
+    }
+  else
+    {
+      return ERROR_TUPLE_2(ATOM_CLOSED);
+    }
+}
+
+ERL_NIF_TERM
 shutdown_connection3(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
   QuicerConnCTX *c_ctx;

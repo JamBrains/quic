@@ -55,6 +55,7 @@
     shutdown_connection/2,
     shutdown_connection/3,
     shutdown_connection/4,
+    close_connection/1,
     async_shutdown_connection/3,
     close_connection/1,
     close_connection/3,
@@ -635,7 +636,7 @@ close_connection(Conn, Flags, ErrorCode) ->
     timeout()
 ) -> ok | {error, badarg | timeout}.
 close_connection(Conn, Flags, ErrorCode, Timeout) ->
-    shutdown_connection(Conn, Flags, ErrorCode, Timeout).
+    quicer_nif:close_connection(Conn).
 
 -spec async_close_connection(connection_handle()) -> ok.
 async_close_connection(Conn) ->
