@@ -1,3 +1,4 @@
+
 /*--------------------------------------------------------------------
 Copyright (c) 2023-2024 EMQ Technologies Co., Ltd. All Rights Reserved.
 
@@ -51,7 +52,7 @@ parse_cert_options_in_memory(ErlNifEnv *env,
       }
 
     // TODO Tag probably wrong
-    char *allocated_asn1 = (char *)CXPLAT_ALLOC_NONPAGED(asn1_bin.size, QUIC_POOL_TEST);
+    char *allocated_asn1 = (char *)CXPLAT_ALLOC_NONPAGED(asn1_bin.size, QUICER_CERTIFICATE_PKCS12);
     if (!allocated_asn1)
       {
         goto error;

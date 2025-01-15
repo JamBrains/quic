@@ -189,8 +189,12 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     }
 
   ERL_NIF_TERM ctx = argv[0];
+  ERL_NIF_TERM res = ATOM_UNDEFINED;
+  BOOLEAN cert_good = FALSE;
+  ERL_NIF_TERM ecert_good = argv[1];
   void *q_ctx;
   QuicerConnCTX *c_ctx;
+
   if (enif_get_resource(env, ctx, ctx_stream_t, &q_ctx))
     {
       c_ctx = ((QuicerStreamCTX *)q_ctx)->c_ctx;
@@ -209,8 +213,6 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
       return ERROR_TUPLE_2(ATOM_CLOSED);
     }
 
-  BOOLEAN cert_good = FALSE;
-  ERL_NIF_TERM ecert_good = argv[1];
   if (IS_SAME_TERM(ATOM_TRUE, ecert_good))
     {
       cert_good = TRUE;
@@ -221,7 +223,8 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     }
   else
     {
-      return ERROR_TUPLE_2(ATOM_BADARG);
+      res = ERROR_TUPLE_2(ATOM_BADARG);
+      goto exit;
     }
 
   QUIC_TLS_ALERT_CODES tls_code = QUIC_TLS_ALERT_CODE_CERTIFICATE_UNKNOWN;
@@ -236,11 +239,16 @@ complete_cert_validation2(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
   if (QUIC_FAILED(Status))
     {
-      return ERROR_TUPLE_2(ATOM_STATUS(Status));
+      res = ERROR_TUPLE_2(ATOM_STATUS(Status));
     }
-    else {
-      return ATOM_OK;
+  else
+    {
+      res = ATOM_OK;
     }
+
+exit:
+  LOCAL_REFCNT(put_conn_handle(c_ctx));
+  return res;
 }
 
 void
@@ -1006,8 +1014,12 @@ close_connection1(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
   if (get_conn_handle(c_ctx))
     {
+      // TODO check errors
+      enif_mutex_lock(c_ctx->lock);
+      MsQuic->SetCallbackHandler(c_ctx->Connection, NULL, NULL);
       MsQuic->ConnectionClose(c_ctx->Connection);
       put_conn_handle(c_ctx);
+      enif_mutex_unlock(c_ctx->lock);
       return ATOM_OK;
     }
   else
