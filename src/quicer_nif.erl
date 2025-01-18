@@ -30,7 +30,6 @@
     start_listener/3,
     stop_listener/1,
     close_listener/1,
-    close_connection/1,
     async_connect/3,
     async_accept/2,
     async_handshake/1,
@@ -287,11 +286,6 @@ async_handshake(_Connection, _ConnOpts) ->
 -spec async_shutdown_connection(connection_handle(), conn_shutdown_flag(), app_errno()) ->
     ok | {error, badarg}.
 async_shutdown_connection(_Conn, _Flags, _ErrorCode) ->
-    erlang:nif_error(nif_library_not_loaded).
-
--spec close_connection(connection_handle()) ->
-    ok | {error, badarg}.
-close_connection(_Conn) ->
     erlang:nif_error(nif_library_not_loaded).
 
 -spec async_accept_stream(connection_handle(), stream_opts()) ->
