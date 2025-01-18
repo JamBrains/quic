@@ -57,6 +57,7 @@
     shutdown_connection/4,
     close_connection/1,
     async_shutdown_connection/3,
+    close_connection/1,
     close_connection/3,
     close_connection/4,
     async_close_connection/1,
