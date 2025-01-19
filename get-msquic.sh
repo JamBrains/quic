@@ -43,9 +43,10 @@ patch_2_3_8()
     local patch_3="https://github.com/microsoft/msquic/commit/b16a14a72e8c74407ee4a079a1f57efe0246f739.patch"
     local patch_4="https://github.com/microsoft/msquic/pull/4717/commits/9261dacc1dd9a67f6fa8d5fbe663082508b4c605.patch"
     local patch_5="https://gist.githubusercontent.com/ggwpez/c179bcd5f45bbc54c98cb0f9c7a8201f/raw/804f77444658ec1bb337f087f98886d2ebe2e563/msquic.patch"
+    local patch_6="https://gist.githubusercontent.com/ggwpez/8cc1ec2f2b0f0947758e03a687c1097b/raw/ad1af1d7a311de2b746c39a3899dbbfe15352e41/patch2"
     mkdir -p "$patch_dir"
     echo "OTY Patching Msquic 2.3.8"
-    for p in patch_1 patch_2 patch_3 patch_4 patch_5; do
+    for p in patch_1 patch_2 patch_3 patch_4 patch_5 patch_6; do
         do_patch "${!p}"
     done
 }
