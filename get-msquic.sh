@@ -11,10 +11,8 @@ do_patch()
     patch_source="$1"
     patch_file="${patch_dir}/$(basename ${patch_source})"
     curl -f -L -o "${patch_file}" "$patch_source"
-    if patch -p1 -f --dry-run -s < "${patch_file}" 2>/dev/null; then
-        patch -p1 < "${patch_file}"
-    else
-        echo "Skip patching ${patch_file}, already applied"
+    if ! patch -p1 -f < "${patch_file}" 2>/dev/null; then
+        echo "Skip patching ${patch_file}"
     fi
 }
 
