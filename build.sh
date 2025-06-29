@@ -18,7 +18,11 @@ build() {
         MakeCmd=make
     fi
     if [ "$(uname -s)" = 'Darwin' ]; then
-        JOBS="$(sysctl -n hw.ncpu)"
+        if command -v sysctl >/dev/null 2>&1; then
+            JOBS="$(sysctl -n hw.ncpu)"
+        else
+            JOBS=4
+        fi
     else
         JOBS="$(nproc)"
     fi
