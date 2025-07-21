@@ -6,7 +6,11 @@ UNAMES="$(uname -s)"
 case "$UNAMES" in
     Darwin)
         DIST='macos'
-        VERSION_ID="$(sw_vers | grep 'ProductVersion' | cut -d':' -f 2 | cut -d'.' -f1 | tr -d ' \t')"
+        if command -v sw_vers >/dev/null 2>&1; then
+            VERSION_ID="$(sw_vers | grep 'ProductVersion' | cut -d':' -f 2 | cut -d'.' -f1 | tr -d ' \t')"
+        else
+            VERSION_ID="14"  # Default to macOS 14, whatever
+        fi
         SYSTEM="${DIST}${VERSION_ID}"
         ;;
     Linux)
